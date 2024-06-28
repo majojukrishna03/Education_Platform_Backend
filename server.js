@@ -1,8 +1,8 @@
-// backend/server.js
 const express = require('express');
 const { Pool } = require('pg');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const jwt = require('jsonwebtoken');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -60,7 +60,7 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
-// Route to handle login
+// Route to handle login and issue JWT token
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
 
@@ -71,12 +71,17 @@ app.post('/api/login', async (req, res) => {
     const result = await pool.query(query, values);
 
     if (result.rows.length > 0) {
-      // User found, login successful
+      // User found, generate JWT token
       const userData = {
         email: result.rows[0].email,
-        fullName: result.rows[0].fullName, // Assuming fullName is stored in your database
+        fullName: result.rows[0].fullName,
       };
-      res.status(200).json(userData);
+
+      // Sign JWT token with a secret key
+      const token = jwt.sign(userData, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+      // Return token and user data
+      res.status(200).json({ token, userData });
     } else {
       // User not found or credentials don't match
       res.status(401).json({ message: 'Login failed. Please check your credentials.' });

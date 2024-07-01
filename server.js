@@ -31,20 +31,26 @@ pool.query('SELECT NOW()', (err, res) => {
   }
 });
 
-// Create table if not exists
+// Create tables if not exists
 const createTableQuery = `
   CREATE TABLE IF NOT EXISTS registrations (
     email VARCHAR(255) PRIMARY KEY,
     fullName VARCHAR(255) NOT NULL,
     password VARCHAR(255) NOT NULL
-  )
+  );
+
+  CREATE TABLE IF NOT EXISTS admin_registrations (
+    email VARCHAR(255) PRIMARY KEY,
+    fullName VARCHAR(255) NOT NULL,
+    password VARCHAR(255) NOT NULL
+  );
 `;
 
 pool.query(createTableQuery, (err, res) => {
   if (err) {
-    console.error('Error creating table:', err);
+    console.error('Error creating tables:', err);
   } else {
-    console.log('Table "registrations" is ready');
+    console.log('Tables "registrations" and "admin_registrations" are ready');
   }
 });
 
@@ -65,7 +71,7 @@ const verifyToken = (req, res, next) => {
   });
 };
 
-// Example route to handle registration
+// Route to handle student registration
 app.post('/api/register', async (req, res) => {
   const { fullName, email, password } = req.body;
 
@@ -83,7 +89,7 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
-// Route to handle login
+// Route to handle student login
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
 
@@ -106,6 +112,24 @@ app.post('/api/login', async (req, res) => {
   } catch (error) {
     console.error('Error logging in:', error);
     res.status(500).json({ message: 'Login failed. Please try again later.' });
+  }
+});
+
+// Route to handle admin registration
+app.post('/api/admin/register', async (req, res) => {
+  const { fullName, email, password } = req.body;
+
+  try {
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const insertQuery = 'INSERT INTO admin_registrations (email, fullName, password) VALUES ($1, $2, $3) RETURNING *';
+    const values = [email, fullName, hashedPassword];
+    const result = await pool.query(insertQuery, values);
+    
+    res.status(201).json({ message: 'Admin registration successful!', registration: result.rows[0] });
+  } catch (error) {
+    console.error('Error saving admin registration:', error);
+    res.status(500).json({ message: 'Admin registration failed.' });
   }
 });
 

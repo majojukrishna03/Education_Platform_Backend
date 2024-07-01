@@ -32,13 +32,12 @@ pool.query('SELECT NOW()', (err, res) => {
 });
 
 // Create tables if not exists
-const createTableQuery = `
+const createTablesQuery = `
   CREATE TABLE IF NOT EXISTS registrations (
     email VARCHAR(255) PRIMARY KEY,
     fullName VARCHAR(255) NOT NULL,
     password VARCHAR(255) NOT NULL
   );
-
   CREATE TABLE IF NOT EXISTS admin_registrations (
     email VARCHAR(255) PRIMARY KEY,
     fullName VARCHAR(255) NOT NULL,
@@ -46,7 +45,7 @@ const createTableQuery = `
   );
 `;
 
-pool.query(createTableQuery, (err, res) => {
+pool.query(createTablesQuery, (err, res) => {
   if (err) {
     console.error('Error creating tables:', err);
   } else {
@@ -71,7 +70,7 @@ const verifyToken = (req, res, next) => {
   });
 };
 
-// Route to handle student registration
+// Route to handle user registration
 app.post('/api/register', async (req, res) => {
   const { fullName, email, password } = req.body;
 
@@ -89,7 +88,7 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
-// Route to handle student login
+// Route to handle user login
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
 
@@ -130,6 +129,32 @@ app.post('/api/admin/register', async (req, res) => {
   } catch (error) {
     console.error('Error saving admin registration:', error);
     res.status(500).json({ message: 'Admin registration failed.' });
+  }
+});
+
+// Route to handle admin login
+app.post('/api/admin/login', async (req, res) => {
+  const { email, password } = req.body;
+
+  try {
+    const query = 'SELECT * FROM admin_registrations WHERE email = $1';
+    const values = [email];
+    const result = await pool.query(query, values);
+
+    if (result.rows.length > 0) {
+      const isPasswordMatch = await bcrypt.compare(password, result.rows[0].password);
+      if (isPasswordMatch) {
+        const token = jwt.sign({ email: result.rows[0].email, fullName: result.rows[0].fullname }, SECRET_KEY, { expiresIn: '1h' });
+        res.status(200).json({ token });
+      } else {
+        res.status(401).json({ message: 'Admin login failed. Please check your credentials.' });
+      }
+    } else {
+      res.status(401).json({ message: 'Admin login failed. Please check your credentials.' });
+    }
+  } catch (error) {
+    console.error('Error logging in admin:', error);
+    res.status(500).json({ message: 'Admin login failed. Please try again later.' });
   }
 });
 

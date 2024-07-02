@@ -196,6 +196,27 @@ app.post('/api/admin/dashboard/create-course', async (req, res) => {
   }
 });
 
+// Route to fetch all courses grouped by program
+app.get('/api/courses', async (req, res) => {
+  try {
+    const query = 'SELECT * FROM courses ORDER BY program, id';
+    const result = await pool.query(query);
+    
+    const coursesByProgram = result.rows.reduce((acc, course) => {
+      if (!acc[course.program]) {
+        acc[course.program] = [];
+      }
+      acc[course.program].push(course);
+      return acc;
+    }, {});
+
+    res.status(200).json(coursesByProgram);
+  } catch (error) {
+    console.error('Error fetching courses:', error);
+    res.status(500).json({ message: 'Failed to fetch courses.' });
+  }
+});
+
 // Protected route example
 app.get('/api/dashboard', verifyToken, (req, res) => {
   res.json({ message: `Welcome ${req.user.fullName}!` });

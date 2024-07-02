@@ -144,6 +144,14 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
+// Route to get user dashboard data
+app.get('/api/dashboard', verifyToken, (req, res) => {
+  const { email, fullName } = req.user;
+  console.log(fullName)
+  res.status(200).json({ message: `Welcome to your dashboard, ${fullName}!`, email, fullName });
+});
+
+
 // Route to handle admin registration
 app.post('/api/admin/register', async (req, res) => {
   const { fullName, email, password } = req.body;

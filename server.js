@@ -1,4 +1,3 @@
-// backend/server.js
 const express = require('express');
 const { Pool } = require('pg');
 const bodyParser = require('body-parser');
@@ -43,13 +42,23 @@ const createTablesQuery = `
     fullName VARCHAR(255) NOT NULL,
     password VARCHAR(255) NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS courses (
+    program VARCHAR(100) NOT NULL,
+    id VARCHAR(100) PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    description TEXT NOT NULL,
+    price DECIMAL NOT NULL,
+    duration VARCHAR(50) NOT NULL,
+    startDate DATE NOT NULL,
+    image TEXT NOT NULL
+  );
 `;
 
 pool.query(createTablesQuery, (err, res) => {
   if (err) {
     console.error('Error creating tables:', err);
   } else {
-    console.log('Tables "registrations" and "admin_registrations" are ready');
+    console.log('Tables "registrations", "admin_registrations", and "courses" are ready');
   }
 });
 
@@ -155,6 +164,35 @@ app.post('/api/admin/login', async (req, res) => {
   } catch (error) {
     console.error('Error logging in admin:', error);
     res.status(500).json({ message: 'Admin login failed. Please try again later.' });
+  }
+});
+
+// Route to create a new course
+app.post('/api/admin/dashboard/create-course', async (req, res) => {
+  const { id, title, description, price, duration, program, startDate, image } = req.body;
+
+  try {
+    // Check if course with the same ID already exists
+    const checkQuery = 'SELECT EXISTS(SELECT 1 FROM courses WHERE id = $1)';
+    const checkValues = [id];
+    const checkResult = await pool.query(checkQuery, checkValues);
+
+    if (checkResult.rows[0].exists) {
+      // Course with the same ID already exists
+      return res.status(400).json({ message: 'Course with the same ID already exists.' });
+    }
+
+    // If course doesn't exist, proceed with insertion
+    const insertQuery = `
+      INSERT INTO courses (id, title, description, price, duration, program, startDate, image) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`;
+    const insertValues = [id, title, description, price, duration, program, startDate, image];
+    const result = await pool.query(insertQuery, insertValues);
+    
+    res.status(201).json({ message: 'Course created successfully!', course: result.rows[0] });
+  } catch (error) {
+    // console.error('Error creating course:', error);
+    res.status(500).json({ message: 'Course creation failed.' });
   }
 });
 

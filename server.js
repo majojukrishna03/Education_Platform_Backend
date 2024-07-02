@@ -4,6 +4,7 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const nodemailer = require('nodemailer');
 require('dotenv').config();
 
 const app = express();
@@ -19,6 +20,15 @@ const pool = new Pool({
   database: 'education_platform',
   password: 'Murali@123',
   port: 5010, // Default PostgreSQL port
+});
+
+// Nodemailer configuration
+const transporter = nodemailer.createTransport({
+  service: 'gmail', // Update with your email service provider
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
 });
 
 // Test PostgreSQL connection
@@ -52,13 +62,24 @@ const createTablesQuery = `
     startDate DATE NOT NULL,
     image TEXT NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS enrollments (
+    applicationNumber VARCHAR(100) PRIMARY KEY,
+    fullName VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    phone VARCHAR(50) NOT NULL,
+    qualification VARCHAR(100) NOT NULL,
+    degreeType VARCHAR(100),
+    qualificationScore DECIMAL NOT NULL,
+    courseId VARCHAR(100) NOT NULL,
+    statementOfPurpose TEXT NOT NULL
+  );
 `;
 
 pool.query(createTablesQuery, (err, res) => {
   if (err) {
     console.error('Error creating tables:', err);
   } else {
-    console.log('Tables "registrations", "admin_registrations", and "courses" are ready');
+    console.log('Tables are ready');
   }
 });
 
@@ -191,7 +212,6 @@ app.post('/api/admin/dashboard/create-course', async (req, res) => {
     
     res.status(201).json({ message: 'Course created successfully!', course: result.rows[0] });
   } catch (error) {
-    // console.error('Error creating course:', error);
     res.status(500).json({ message: 'Course creation failed.' });
   }
 });
@@ -217,15 +237,60 @@ app.get('/api/courses', async (req, res) => {
   }
 });
 
-// Protected route example
-app.get('/api/dashboard', verifyToken, (req, res) => {
-  res.json({ message: `Welcome ${req.user.fullName}!` });
-});
+// Route to handle enrollment form submissions
+app.post('/api/enroll', async (req, res) => {
+  const {
+    applicationNumber,
+    fullName,
+    email,
+    phone,
+    qualification,
+    degreeType,
+    qualificationScore,
+    courseId,
+    statementOfPurpose,
+  } = req.body;
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).send('Something broke!');
+  try {
+    const insertQuery = `
+      INSERT INTO enrollments (applicationNumber, fullName, email, phone, qualification, degreeType, qualificationScore, courseId, statementOfPurpose)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`;
+    const values = [
+      applicationNumber,
+      fullName,
+      email,
+      phone,
+      qualification,
+      degreeType,
+      qualificationScore,
+      courseId,
+      statementOfPurpose,
+    ];
+
+    // Insert into database
+    const result = await pool.query(insertQuery, values);
+
+    // Send acknowledgment email
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: 'Enrollment Confirmation',
+      text: `Dear ${fullName},\n\nYour application has been successfully submitted.\n\nApplication Number: ${applicationNumber}\n\nThank you!`,
+    };
+
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        console.error('Error sending email:', error);
+        res.status(500).json({ message: 'Error sending acknowledgment email' });
+      } else {
+        console.log('Email sent: ' + info.response);
+        res.status(201).json({ message: 'Form submitted successfully!', enrollment: result.rows[0] });
+      }
+    });
+  } catch (error) {
+    console.error('Error saving enrollment:', error);
+    res.status(500).json({ message: 'Form submission failed.' });
+  }
 });
 
 app.listen(PORT, () => {

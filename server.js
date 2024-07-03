@@ -301,6 +301,28 @@ app.post('/api/enroll', async (req, res) => {
   }
 });
 
+
+// Route to handle tracking application status by application number
+app.get('/api/applications/:applicationNumber', async (req, res) => {
+  const { applicationNumber } = req.params;
+
+  try {
+    const query = 'SELECT * FROM enrollments WHERE applicationNumber = $1';
+    const values = [applicationNumber];
+    const result = await pool.query(query, values);
+
+    if (result.rows.length > 0) {
+      res.status(200).json({ status: 'Status : In Processing', application: result.rows[0] });
+    } else {
+      res.status(404).json({ message: 'Application not found' });
+    }
+  } catch (error) {
+    console.error('Error fetching application status:', error);
+    res.status(500).json({ message: 'Error fetching application status' });
+  }
+});
+
+
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });

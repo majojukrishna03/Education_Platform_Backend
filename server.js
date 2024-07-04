@@ -324,6 +324,42 @@ app.get('/api/applications/:applicationNumber', async (req, res) => {
   }
 });
 
+// Route to fetch all applications for review
+app.get('/api/admin/dashboard/applications', verifyToken, async (req, res) => {
+  try {
+    const query = 'SELECT * FROM enrollments WHERE status = $1 ORDER BY applicationNumber';
+    const values = ['In Processing']; // Change the status value if needed
+    const result = await pool.query(query, values);
+    
+    res.status(200).json({ applications: result.rows });
+  } catch (error) {
+    console.error('Error fetching applications:', error);
+    res.status(500).json({ message: 'Failed to fetch applications.' });
+  }
+});
+
+// Route to approve an enrollment
+app.put('/api/admin/dashboard/applications/:applicationnumber', verifyToken, async (req, res) => {
+  const { applicationnumber } = req.params;
+  const { status } = req.body;
+
+  try {
+    // Update enrollment status in the database
+    const updateQuery = 'UPDATE enrollments SET status = $1 WHERE applicationnumber = $2 RETURNING *';
+    const values = [status, applicationnumber];
+    const result = await pool.query(updateQuery, values);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Enrollment not found' });
+    }
+
+    res.status(200).json({ message: 'Enrollment approved successfully!', enrollment: result.rows[0] });
+  } catch (error) {
+    console.error('Error approving enrollment:', error);
+    res.status(500).json({ message: 'Failed to approve enrollment.' });
+  }
+});
+
 
 
 app.listen(PORT, () => {

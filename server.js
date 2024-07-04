@@ -71,7 +71,8 @@ const createTablesQuery = `
     degreeType VARCHAR(100),
     qualificationScore DECIMAL NOT NULL,
     courseId VARCHAR(100) NOT NULL,
-    statementOfPurpose TEXT NOT NULL
+    statementOfPurpose TEXT NOT NULL,
+    status VARCHAR(50) DEFAULT 'In Processing'  -- Add the new column with default value
   );
 `;
 
@@ -261,8 +262,8 @@ app.post('/api/enroll', async (req, res) => {
 
   try {
     const insertQuery = `
-      INSERT INTO enrollments (applicationNumber, fullName, email, phone, qualification, degreeType, qualificationScore, courseId, statementOfPurpose)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`;
+      INSERT INTO enrollments (applicationNumber, fullName, email, phone, qualification, degreeType, qualificationScore, courseId, statementOfPurpose, status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`;
     const values = [
       applicationNumber,
       fullName,
@@ -273,6 +274,7 @@ app.post('/api/enroll', async (req, res) => {
       qualificationScore,
       courseId,
       statementOfPurpose,
+      'In Processing',  // Default status
     ];
 
     // Insert into database

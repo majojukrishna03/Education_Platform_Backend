@@ -327,7 +327,7 @@ app.get('/api/applications/:applicationNumber', async (req, res) => {
 // Route to fetch all applications for review
 app.get('/api/admin/dashboard/applications', verifyToken, async (req, res) => {
   try {
-    const query = 'SELECT * FROM enrollments WHERE status = $1 ORDER BY applicationNumber';
+    const query = ' SELECT e.*, c.title AS courseName FROM enrollments e INNER JOIN courses c ON e.courseid = c.id WHERE e.status = $1 ORDER BY e.applicationNumber';
     const values = ['In Processing']; // Change the status value if needed
     const result = await pool.query(query, values);
     
@@ -338,14 +338,18 @@ app.get('/api/admin/dashboard/applications', verifyToken, async (req, res) => {
   }
 });
 
-// Route to approve an enrollment
-app.put('/api/admin/dashboard/applications/:applicationnumber', verifyToken, async (req, res) => {
+// Route to approve an enrollment and send confirmation email
+app.put('/api/admin/dashboard/applications/:applicationnumber/approve', verifyToken, async (req, res) => {
   const { applicationnumber } = req.params;
   const { status } = req.body;
 
   try {
-    // Update enrollment status in the database
-    const updateQuery = 'UPDATE enrollments SET status = $1 WHERE applicationnumber = $2 RETURNING *';
+    // Update enrollment status in the database and fetch fullname and email
+    const updateQuery = `
+      UPDATE enrollments
+      SET status = $1
+      WHERE applicationnumber = $2
+      RETURNING fullname, email`;
     const values = [status, applicationnumber];
     const result = await pool.query(updateQuery, values);
 
@@ -353,13 +357,71 @@ app.put('/api/admin/dashboard/applications/:applicationnumber', verifyToken, asy
       return res.status(404).json({ message: 'Enrollment not found' });
     }
 
-    res.status(200).json({ message: 'Enrollment approved successfully!', enrollment: result.rows[0] });
+    // Send acknowledgment email to the student
+    const { fullname, email } = result.rows[0];
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: 'Enrollment Approval Confirmation',
+      text: `Dear ${fullname},\n\nYour enrollment application numbered: ${applicationnumber} has been approved.\n\nCongratulations!\n\nSincerely,\nThe Admin Team\nEducation Platform `,
+    };
+
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        console.error('Error sending email:', error);
+        res.status(500).json({ message: 'Error sending confirmation email' });
+      } else {
+        console.log('Email sent: ' + info.response);
+        res.status(200).json({ message: 'Enrollment approved successfully!', enrollment: { fullname, email, applicationnumber, status } });
+      }
+    });
+
   } catch (error) {
     console.error('Error approving enrollment:', error);
     res.status(500).json({ message: 'Failed to approve enrollment.' });
   }
 });
 
+
+
+// Route to deny an enrollment application and send an email notification
+app.put('/api/admin/dashboard/applications/:applicationnumber/deny', verifyToken, async (req, res) => {
+  const { applicationnumber } = req.params;
+
+  try {
+    // Update enrollment status in the database to 'Denied'
+    const updateQuery = 'UPDATE enrollments SET status = $1 WHERE applicationnumber = $2 RETURNING fullname,email';
+    const values = ['Denied', applicationnumber];
+    const result = await pool.query(updateQuery, values);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Enrollment not found' });
+    }
+
+    // Send acknowledgment email to the student
+    const { fullname, email } = result.rows[0];
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: 'Enrollment Denial Notification',
+      text: `Dear ${fullname},\n\nYour enrollment application numbered: ${applicationnumber} has been denied.\n\nWe appreciate your interest and encourage you to consider other opportunities.\n\nSincerely,\nThe Admin Team\nEducation Platform`,
+    };
+
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        console.error('Error sending email:', error);
+        res.status(500).json({ message: 'Error sending confirmation email' });
+      } else {
+        console.log('Email sent: ' + info.response);
+        res.status(200).json({ message: 'Enrollment denied successfully!', enrollment: result.rows[0] });
+      }
+    });
+
+  } catch (error) {
+    console.error('Error denying enrollment:', error);
+    res.status(500).json({ message: 'Failed to deny enrollment.' });
+  }
+});
 
 
 app.listen(PORT, () => {

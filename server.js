@@ -309,12 +309,12 @@ app.get('/api/applications/:applicationNumber', async (req, res) => {
   const { applicationNumber } = req.params;
 
   try {
-    const query = 'SELECT * FROM enrollments WHERE applicationNumber = $1';
+    const query = 'SELECT status FROM enrollments WHERE applicationNumber = $1';
     const values = [applicationNumber];
     const result = await pool.query(query, values);
 
     if (result.rows.length > 0) {
-      res.status(200).json({ status: 'Status : In Processing', application: result.rows[0] });
+      res.status(200).json({ status: result.rows[0].status, application: result.rows[0] });
     } else {
       res.status(404).json({ message: 'Application not found' });
     }
@@ -323,6 +323,7 @@ app.get('/api/applications/:applicationNumber', async (req, res) => {
     res.status(500).json({ message: 'Error fetching application status' });
   }
 });
+
 
 
 app.listen(PORT, () => {

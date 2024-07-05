@@ -74,6 +74,40 @@ const createTablesQuery = `
     statementOfPurpose TEXT NOT NULL,
     status VARCHAR(50) DEFAULT 'In Processing'  -- Add the new column with default value
   );
+
+  CREATE TABLE IF NOT EXISTS payments (
+    payment_id SERIAL PRIMARY KEY,
+    application_id VARCHAR(100) NOT NULL,
+    fullname VARCHAR(255) NOT NULL,
+    emailid VARCHAR(255) NOT NULL,
+    courseid VARCHAR(100) NOT NULL,
+    coursename VARCHAR(255) NOT NULL,
+    course_fee DECIMAL NOT NULL,
+    payment_method VARCHAR(50) NOT NULL,
+    payment_option VARCHAR(50) NOT NULL,
+    card_number VARCHAR(20) NOT NULL,
+    expiration_date VARCHAR(10) NOT NULL,
+    cvv VARCHAR(10) NOT NULL,
+    timestamp TIMESTAMP DEFAULT NOW()
+  );
+
+  CREATE TABLE IF NOT EXISTS totalpayments (
+    payment_id INT NOT NULL,
+    amount DECIMAL NOT NULL,
+    timestamp TIMESTAMP DEFAULT NOW(),
+    PRIMARY KEY (payment_id),
+    FOREIGN KEY (payment_id) REFERENCES payments(payment_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS payment_plan (
+    payment_id INT NOT NULL,
+    first_installment DECIMAL NOT NULL,
+    second_installment DECIMAL NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'pending',
+    timestamp TIMESTAMP DEFAULT NOW(),
+    PRIMARY KEY (payment_id),
+    FOREIGN KEY (payment_id) REFERENCES payments(payment_id)
+  );
 `;
 
 pool.query(createTablesQuery, (err, res) => {
@@ -148,7 +182,7 @@ app.post('/api/login', async (req, res) => {
 // Route to get user dashboard data
 app.get('/api/dashboard', verifyToken, (req, res) => {
   const { email, fullName } = req.user;
-  console.log(fullName)
+  // console.log(fullName) 
   res.status(200).json({ message: `Welcome to your dashboard, ${fullName}!`, email, fullName });
 });
 
@@ -323,6 +357,139 @@ app.get('/api/applications/:applicationNumber', async (req, res) => {
     res.status(500).json({ message: 'Error fetching application status' });
   }
 });
+
+// Fetch application and course details
+app.get('/api/applications/:applicationId/details', async (req, res) => {
+  const { applicationId } = req.params;
+  try {
+    const applicationDetails = await pool.query(
+      `SELECT 
+  enrollments.applicationnumber AS applicationId, 
+  enrollments.fullname AS fullname,
+  enrollments.email AS emailId,
+  courses.id AS courseId, 
+  courses.title AS courseName, 
+  courses.price AS courseMoney
+FROM enrollments
+JOIN courses ON enrollments.courseid = courses.id
+WHERE enrollments.applicationnumber = $1`
+, [applicationId]);
+
+    if (applicationDetails.rows.length === 0) {
+      return res.status(404).json({ error: 'Application not found' });
+    }
+
+    res.json(applicationDetails.rows[0]);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Endpoint to handle payment submission
+app.post('/api/payments', async (req, res) => {
+  const { applicationId, courseDetails, paymentMethod, paymentOption, cardNumber, expirationDate, cvv } = req.body;
+
+  try {
+    // Insert payment data into payments table
+    const { rows } = await pool.query(
+      'INSERT INTO payments (application_id, fullname, emailid, courseid, coursename, course_fee, payment_method, payment_option, card_number, expiration_date, cvv, timestamp) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW()) RETURNING *',
+      [applicationId, courseDetails.fullname, courseDetails.emailid, courseDetails.courseid, courseDetails.coursename, courseDetails.coursemoney, paymentMethod, paymentOption, cardNumber, expirationDate, cvv]
+    );
+
+    // Extract the inserted payment details
+    const insertedPayment = rows[0];
+
+    // Handle payment plan if selected
+    if (paymentOption === 'payment_plan') {
+      // Example: Insert first installment (half amount)
+      const installmentAmount = courseDetails.coursemoney / 2; // Adjust based on your logic
+
+      // Insert into payment_plan table
+      await pool.query(
+        'INSERT INTO payment_plan (payment_id, first_installment, second_installment, status, timestamp) VALUES ($1, $2, $3, $4, NOW())',
+        [insertedPayment.payment_id, installmentAmount, courseDetails.coursemoney - installmentAmount, 'pending']
+      );
+
+      // Send acknowledgment for payment plan
+      await sendAcknowledgmentEmailForPaymentPlan(courseDetails.emailid, applicationId, installmentAmount, courseDetails.coursemoney, courseDetails.fullname);
+    } else if (paymentOption === 'full_payment') {
+      // Insert into totalpayments table for full payment
+      await pool.query(
+        'INSERT INTO totalpayments (payment_id, amount, timestamp) VALUES ($1, $2, NOW())',
+        [insertedPayment.payment_id, courseDetails.coursemoney]
+      );
+
+      // Send acknowledgment for full payment
+      await sendAcknowledgmentEmailForFullPayment(courseDetails.emailid, applicationId, courseDetails.coursemoney, courseDetails.fullname);
+    }
+
+    res.status(201).json({ message: 'Payment processed successfully', paymentId: insertedPayment.payment_id });
+  } catch (error) {
+    console.error('Error processing payment:', error);
+    res.status(500).json({ error: 'An error occurred while processing payment' });
+  }
+});
+
+// Function to send acknowledgment email for full payment
+const sendAcknowledgmentEmailForFullPayment = async (emailid, applicationId, amount, fullname) => {
+  try {
+    // Email content
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: emailid,
+      subject: 'Payment Acknowledgment - Full Payment',
+      text: `
+        Dear ${fullname},
+
+        We have successfully received your full payment of Rs.${amount} for Application ID: ${applicationId}.
+
+        Thank you for choosing our platform. If you have any questions, feel free to contact us.
+
+        Best regards,
+        Admin Team
+        Education Platform
+      `,
+    };
+
+    // Send email
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Email sent:', info.messageId);
+  } catch (error) {
+    console.error('Error sending email:', error);
+  }
+};
+
+// Function to send acknowledgment email for payment plan
+const sendAcknowledgmentEmailForPaymentPlan = async (emailid, applicationId, firstInstallment, totalAmount, fullname) => {
+  try {
+    // Email content
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: emailid,
+      subject: 'Payment Acknowledgment - Payment Plan',
+      text: `
+        Dear ${fullname},
+
+        We have successfully received your first installment of Rs.${firstInstallment} for Application ID: ${applicationId}. You are required to pay the second installment of Rs.${(totalAmount - firstInstallment).toFixed(2)} within one month.
+
+        Thank you for choosing our platform. If you have any questions, feel free to contact us.
+
+        Best regards,
+        Admin Team
+        Education Platform
+      `,
+    };
+
+    // Send email
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Email sent:', info.messageId);
+  } catch (error) {
+    console.error('Error sending email:', error);
+  }
+};
+
+
 
 // Route to fetch all applications for review
 app.get('/api/admin/dashboard/applications', verifyToken, async (req, res) => {

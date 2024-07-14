@@ -530,7 +530,7 @@ app.put('/api/admin/dashboard/applications/:applicationnumber/approve', verifyTo
       from: process.env.EMAIL_USER,
       to: email,
       subject: 'Enrollment Approval Confirmation',
-      text: `Dear ${fullname},\n\nYour enrollment application numbered: ${applicationnumber} has been approved.\n\nCongratulations!\n\nSincerely,\nThe Admin Team\nEducation Platform `,
+      text: `Dear ${fullname},\n\nYour enrollment application numbered: ${applicationnumber} has been approved.\n\nPlease complete the payment by tracking application to access the course.\n\nHappy learning!\n\nSincerely,\nThe Admin Team\nEducation Platform `,
     };
 
     transporter.sendMail(mailOptions, (error, info) => {

@@ -135,6 +135,17 @@ const verifyToken = (req, res, next) => {
   });
 };
 
+// Route to fetch all courses
+app.get('/api/courses', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM courses');
+    res.json(result.rows); // Sending courses as JSON response
+  } catch (error) {
+    console.error('Error fetching courses:', error);
+    res.status(500).json({ error: 'Server Error' });
+  }
+});
+
 // Route to fetch the number of admin registrations
 app.get('/api/admin-count', async (req, res) => {
   try {

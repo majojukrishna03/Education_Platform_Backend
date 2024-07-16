@@ -489,6 +489,47 @@ const sendAcknowledgmentEmailForPaymentPlan = async (emailid, applicationId, fir
   }
 };
 
+// Example endpoint to fetch payment status
+app.get('/api/payments/:applicationId', async (req, res) => {
+  const { applicationId } = req.params;
+
+  try {
+    // Query your PostgreSQL database for payment status
+    const payment = await pool.query('SELECT * FROM payments WHERE application_id = $1', [applicationId]);
+
+    if (payment.rows.length === 0) {
+      return res.json({ paymentDone: false }); // No payment found
+    }
+
+    // You might have additional logic to check payment status
+    // For simplicity, assume payment is done if a record is found
+    res.json({ paymentDone: true });
+  } catch (error) {
+    console.error('Error fetching payment status:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// Example server-side route to fetch enrolled courses by user's full name
+app.get('/api/dashboard/enrolled-courses', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', ''); // Extract token
+
+  if (!token) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    // Verify token and get user details
+    const user = jwt.verify(token, process.env.SECRET_KEY); // Replace with your JWT secret key
+    // Fetch enrolled courses based on user's full name
+    const enrolledCourses = await pool.query('SELECT courseid AS courseId, coursename AS courseName FROM payments WHERE fullname = $1', [user.fullName]);
+    res.json({ enrolledCourses: enrolledCourses.rows });
+  } catch (error) {
+    console.error('Error fetching enrolled courses:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 
 
 // Route to fetch all applications for review

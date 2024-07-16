@@ -135,6 +135,20 @@ const verifyToken = (req, res, next) => {
   });
 };
 
+// Route to fetch the number of admin registrations
+app.get('/api/admin-count', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT COUNT(*) FROM admin_registrations');
+    const count = result.rows[0].count;
+    console.log(count);
+    res.send(count.toString()); // Sending count as plain text
+  } catch (error) {
+    console.error(error.message);
+    res.status(500).send('Server Error');
+  }
+});
+
+
 // Route to handle user registration
 app.post('/api/register', async (req, res) => {
   const { fullName, email, password } = req.body;

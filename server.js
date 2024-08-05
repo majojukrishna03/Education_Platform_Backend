@@ -14,12 +14,18 @@ const SECRET_KEY = process.env.SECRET_KEY;
 app.use(cors());
 app.use(bodyParser.json());
 
+// const pool = new Pool({
+//   user: 'postgres',
+//   host: 'localhost',
+//   database: 'education_platform',
+//   password: 'Murali@123',
+//   port: 5010, // Default PostgreSQL port
+// });
 const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'education_platform',
-  password: 'Murali@123',
-  port: 5010, // Default PostgreSQL port
+  connectionString: process.env.DATABASE_URL, // Make sure this matches the Render provided URL
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 
 // Nodemailer configuration

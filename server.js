@@ -11,25 +11,9 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const SECRET_KEY = process.env.SECRET_KEY;
 
-// Define allowed origins
-const allowedOrigins = [
-  'http://localhost:3000', // For local development
-  'https://educationplatform03.netlify.app', // For production
-];
-
-// CORS configuration
 app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true); // Allow requests with no origin
-    if (allowedOrigins.indexOf(origin) === -1) {
-      const msg = 'The CORS policy does not allow access from the specified Origin.';
-      return callback(new Error(msg), false);
-    }
-    return callback(null, true);
-  },
-  methods: ['GET', 'POST', 'PUT', 'DELETE'], // Allowed HTTP methods
-  allowedHeaders: ['Content-Type', 'Authorization'], // Allowed headers
-  credentials: true, // Enable cookies to be sent if needed
+  origin: '*',
+  methods: ['GET', 'POST'],
 }));
 app.use(bodyParser.json());
 

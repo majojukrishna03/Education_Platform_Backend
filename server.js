@@ -11,15 +11,40 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const SECRET_KEY = process.env.SECRET_KEY;
 
-app.use(cors());
+// Define allowed origins
+const allowedOrigins = [
+  'https://educationplatform03.netlify.app', // Add your frontend URL here
+  'http://localhost:3000' // Add localhost if you are testing locally
+];
+
+// Set up CORS middleware
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin, like mobile apps or curl requests
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
+  credentials: true // Enable credentials if needed
+}));
 app.use(bodyParser.json());
 
+// const pool = new Pool({
+//   user: 'postgres',
+//   host: 'localhost',
+//   database: 'education_platform',
+//   password: 'Murali@123',
+//   port: 5010, // Default PostgreSQL port
+// });
+
 const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'education_platform',
-  password: 'Murali@123',
-  port: 5010, // Default PostgreSQL port
+  connectionString: process.env.DATABASE_URL, // Make sure this matches the Render provided URL
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 
 // Nodemailer configuration

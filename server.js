@@ -13,22 +13,23 @@ const SECRET_KEY = process.env.SECRET_KEY;
 
 // Define allowed origins
 const allowedOrigins = [
-  'https://educationplatform03.netlify.app', // Add your frontend URL here
-  'http://localhost:3000' // Add localhost if you are testing locally
+  'http://localhost:3000', // For local development
+  'https://educationplatform03.netlify.app', // For production
 ];
 
-// Set up CORS middleware
+// CORS configuration
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin, like mobile apps or curl requests
-    if (!origin) return callback(null, true);
+    if (!origin) return callback(null, true); // Allow requests with no origin
     if (allowedOrigins.indexOf(origin) === -1) {
-      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      const msg = 'The CORS policy does not allow access from the specified Origin.';
       return callback(new Error(msg), false);
     }
     return callback(null, true);
   },
-  credentials: true // Enable credentials if needed
+  methods: ['GET', 'POST', 'PUT', 'DELETE'], // Allowed HTTP methods
+  allowedHeaders: ['Content-Type', 'Authorization'], // Allowed headers
+  credentials: true, // Enable cookies to be sent if needed
 }));
 app.use(bodyParser.json());
 
